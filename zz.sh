@@ -4,6 +4,6 @@ cd ~ && \
 git clone https://github.com/zxoman/rat_controle.git && \
 cd rat_controle && \
 npm install && \
-echo -e "cd ~/rat_controle\nnode server.js" > ~/start.sh
-echo 'bash ~/start.sh' > ~/.bashrc
-chmod +x start.sh
+echo -e "cd ~/rat_controle\nnode server.js" > ~/start.sh && \
+echo 'bash ~/start.sh' > ~/.bashrc && \
+chmod +x start.sh && \
